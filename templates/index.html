@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>MicroStatus</title>
+</head>
+<body>
+    {% for service in services %}
+        <div>
+            Name: {{ service.name}}
+            {% if service.up %}&check;{% else %}X{% endif %}
+        </div>
+    {% endfor %}
+</body>
