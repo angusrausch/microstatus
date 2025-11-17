@@ -10,3 +10,4 @@ ping = "0.7"
 rand = "0.9.2"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 tokio = { version = "1", features = ["full"] } 
+yaml-rust2 = "0.10.4"
