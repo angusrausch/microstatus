@@ -1,9 +1,8 @@
 use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
-use std::process::exit;
 use std::str::FromStr;
 use askama::Template;
-use yaml_rust2::{YamlLoader, YamlEmitter};
+use yaml_rust2::YamlLoader;
 use microstatus::{check_http, check_ping, check_port};
 
 #[derive (Debug, Clone)]
@@ -34,41 +33,30 @@ pub struct Service {
     ssl: bool,
 }
 
-impl Default for Service {
-    fn default() -> Self {
-        Service {
-            name: String::new(),
-            svc_type: ServiceType::Ping,
-            host: String::new(),
-            up: false,
-            port: None,
-            ssl: true,
-        }
-    }
-}
-
 fn load_yaml(file: &str) -> Vec<Service>  {
     let yaml_contents = read_to_string(file)
     .expect("Should have been able to read the file");
 
     let yaml_docs = YamlLoader::load_from_str(&yaml_contents).unwrap();
     let yaml = &yaml_docs[0];
-    print!("{:?}\n\n", yaml);
 
+    let mut service_list: Vec<Service> = Vec::new();
     if let Some(services) = yaml["services"].as_vec() {
         for service in services {
-            println!("{:?}", service);
+            service_list.push(
+                Service {
+                    name: service["name"].as_str().unwrap().to_string(),
+                    svc_type: service["svc_type"].as_str().unwrap().parse().unwrap(),
+                    host: service["host"].as_str().unwrap().to_string(),
+                    up: false,
+                    port: service["port"].as_i64().map(|p| p as u16),
+                    ssl: service["ssl"].as_bool().unwrap_or(true),
+                }
+            )
         }
     }
 
-    vec![ //Fake Service return to allow compile
-        Service {
-            name: "HTTP Down".to_string(),
-            host: "notup".to_string(),
-            svc_type: "http".parse::<ServiceType>().unwrap(),
-            ..Default::default()
-        },
-    ]
+    service_list
 }
 
 #[derive(Template)]
