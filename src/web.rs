@@ -79,9 +79,28 @@ fn create_html(file_name: &str, contents: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+fn test_service(service: &Service) -> bool {
+
+    match service.svc_type {
+        ServiceType::Ping => {
+            check_ping(service.host.as_str()).unwrap()
+        }
+        ServiceType::Port => {
+            check_port(service.host.as_str(), service.port.unwrap()).unwrap()
+        }
+        ServiceType::Http => {
+            check_http(service.host.as_str(), service.ssl).unwrap()
+        }
+    }
+}
+
 pub fn generate() {
-    let service_list: Vec<Service> = load_yaml("demo.yaml");
-    
+    let mut service_list: Vec<Service> = load_yaml("demo.yaml");
+
+    for service in service_list.iter_mut() {
+        service.up = test_service(service);
+    }
+
     let output = IndexTemplate { services: &service_list };
     let contents = output.render().unwrap();
 

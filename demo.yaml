@@ -13,9 +13,9 @@ services:
     port: 53
 
   - name: "Port Down"
-    host: "1.1.1.1"
+    host: "0.0.0.0"
     svc_type: "port"
-    port: 53
+    port: 32143
 
   - name: "HTTP Up"
     host: "google.com"
