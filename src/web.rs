@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
+use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
@@ -95,22 +96,28 @@ fn test_service(service: &Service) -> bool {
     }
 }
 
-pub fn generate() {
-    let mut service_list: Vec<Service> = load_yaml("demo.yaml");
+pub async fn generate(frequency: u16, checks_file: &str) {
+    let mut service_list: Vec<Service> = load_yaml(checks_file);
+    
+    let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
 
-    // Check each service is up in parallel
-    service_list.par_iter_mut().for_each(|service| {
-        service.up = test_service(service);
-    });
+    loop {
+        interval.tick().await;
 
-    // Serial version
-    // for service in service_list.iter_mut() { 
-    //     service.up = test_service(service);
-    // }
-
-    let output = IndexTemplate { services: &service_list };
-    let contents = output.render().unwrap();
-
-    println!("{}", contents);
-    create_html("output/test_index.html", &contents).unwrap();
+        // Check each service is up in parallel
+        service_list.par_iter_mut().for_each(|service| {
+            service.up = test_service(service);
+        });
+    
+        // Serial version
+        // for service in service_list.iter_mut() { 
+        //     service.up = test_service(service);
+        // }
+        
+        let output = IndexTemplate { services: &service_list };
+        let contents = output.render().unwrap();
+    
+        println!("{}", contents);
+        create_html("output/test_index.html", &contents).unwrap();
+    }
 }
