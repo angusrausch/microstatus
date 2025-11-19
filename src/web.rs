@@ -3,6 +3,8 @@ use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
 use askama::Template;
 use yaml_rust2::YamlLoader;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+
 use microstatus::{check_http, check_ping, check_port};
 
 #[derive (Debug, Clone)]
@@ -80,7 +82,6 @@ fn create_html(file_name: &str, contents: &str) -> std::io::Result<()> {
 }
 
 fn test_service(service: &Service) -> bool {
-
     match service.svc_type {
         ServiceType::Ping => {
             check_ping(service.host.as_str()).unwrap()
@@ -97,9 +98,15 @@ fn test_service(service: &Service) -> bool {
 pub fn generate() {
     let mut service_list: Vec<Service> = load_yaml("demo.yaml");
 
-    for service in service_list.iter_mut() {
+    // Check each service is up in parallel
+    service_list.par_iter_mut().for_each(|service| {
         service.up = test_service(service);
-    }
+    });
+
+    // Serial version
+    // for service in service_list.iter_mut() { 
+    //     service.up = test_service(service);
+    // }
 
     let output = IndexTemplate { services: &service_list };
     let contents = output.render().unwrap();
