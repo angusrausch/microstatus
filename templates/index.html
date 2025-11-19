@@ -1,13 +1,190 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>MicroStatus</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Status Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #1f1f1f;
+            color: #ffffff;
+            text-align: center;
+            padding: 1.5rem 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.7);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+
+        header p {
+            margin: 0.5rem 0 0;
+            color: #bbbbbb;
+        }
+
+        .last-updated {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: #999999;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 0 1rem;
+        }
+
+        .service-card {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.8);
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+        }
+
+        .service-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .status {
+            font-weight: bold;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .up {
+            color: #4CAF50;
+        }
+
+        .down {
+            color: #f44336;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1.5s infinite;
+        }
+
+        .up .status-dot {
+            background: #4CAF50;
+        }
+
+        .down .status-dot {
+            background: #f44336;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.7; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.7; }
+        }
+
+        .service-details {
+            font-size: 0.95rem;
+            color: #bbbbbb;
+            margin-top: 0.5rem;
+        }
+    </style>
 </head>
 <body>
-    {% for service in services %}
-        <div>
-            Name: {{ service.name}}
-            {% if service.up %}&check;{% else %}X{% endif %}
-        </div>
-    {% endfor %}
+    <header>
+        <h1>Service Status Dashboard</h1>
+        <p>Monitor your services in real-time</p>
+    </header>
+
+    <div class="last-updated">
+        Last updated: <span id="last_updated"></span>
+    </div>
+
+    <div class="container">
+        {% for service in services %}
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-name">{{ service.name }}</div>
+                    <div class="status {% if service.up %}up{% else %}down{% endif %}">
+                        <span class="status-dot"></span>
+                        {% if service.up %}&check;{% else %}X{% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function epochToFormatted(epoch) {
+            if (epoch.toString().length === 10) {
+                epoch *= 1000;
+            }
+
+            const date = new Date(epoch);
+
+            const pad = (num) => num.toString().padStart(2, '0');
+
+            const hours = pad(date.getHours());
+            const minutes = pad(date.getMinutes());
+            const seconds = pad(date.getSeconds());
+            const day = pad(date.getDate());
+            const month = pad(date.getMonth() + 1);
+            const year = date.getFullYear();
+
+            return `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
+        }
+
+        const last_updated = {{last_updated}};
+        const last_updated_str = epochToFormatted(last_updated);
+        const update_frequency = {{frequency}} 
+        document.getElementById("last_updated").textContent = last_updated_str;
+
+        function tryReload() {
+            try {
+                location.reload();
+            } catch (e) {
+                console.error("Reload failed, retrying in 5 seconds...", e);
+                setTimeout(tryReload, (update_frequency * 1000));
+            }
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const update_delay = update_frequency + 3
+        const refresh_in_ms = Math.max((last_updated + update_delay - now) * 1000, 0);
+        setTimeout(tryReload, refresh_in_ms);
+
+
+    </script>
 </body>
+</html>

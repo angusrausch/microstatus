@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use askama::Template;
 use yaml_rust2::YamlLoader;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
@@ -66,7 +66,8 @@ fn load_yaml(file: &str) -> Vec<Service>  {
 #[template(path = "index.html")]
 struct IndexTemplate<'a> { 
     services: &'a [Service], 
-
+    last_updated: u64,
+    frequency: u16,
 }
 
 fn create_html(file_name: &str, contents: &str) -> std::io::Result<()> {
@@ -104,20 +105,27 @@ pub async fn generate(frequency: u16, checks_file: &str) {
     loop {
         interval.tick().await;
 
+        // Get last_update_time to display
+        let last_update_system_time = SystemTime::now();
+        let last_update_epoch: u64 = last_update_system_time
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+
         // Check each service is up in parallel
         service_list.par_iter_mut().for_each(|service| {
             service.up = test_service(service);
         });
+
     
         // Serial version
         // for service in service_list.iter_mut() { 
         //     service.up = test_service(service);
         // }
         
-        let output = IndexTemplate { services: &service_list };
+        let output = IndexTemplate { services: &service_list, last_updated: last_update_epoch, frequency: frequency };
         let contents = output.render().unwrap();
     
-        println!("{}", contents);
         create_html("output/test_index.html", &contents).unwrap();
     }
 }
