@@ -1,4 +1,8 @@
 /target
 /output
 
+# Configuration file
+.env
+checks.yaml
+
 **/.DS_STORE

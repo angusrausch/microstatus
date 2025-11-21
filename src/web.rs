@@ -37,7 +37,7 @@ pub struct Service {
     ssl: bool,
 }
 
-fn load_yaml(file: &str) -> Vec<Service>  {
+fn load_yaml(file: String) -> Vec<Service>  {
     let yaml_contents = read_to_string(file)
     .expect("Should have been able to read the file");
 
@@ -98,7 +98,7 @@ fn test_service(service: &Service) -> bool {
     }
 }
 
-pub async fn generate(frequency: u16, checks_file: &str) {
+pub async fn generate(frequency: u16, checks_file: String, output_dir: String) {
     let mut service_list: Vec<Service> = load_yaml(checks_file);
     
     let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
@@ -123,6 +123,6 @@ pub async fn generate(frequency: u16, checks_file: &str) {
         let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency: frequency };
         let contents = output.render().unwrap();
     
-        create_html("output/test_index.html", &contents).unwrap();
+        create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
     }
 }
