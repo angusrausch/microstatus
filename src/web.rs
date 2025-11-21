@@ -5,7 +5,6 @@ use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
 use chrono::Utc;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use microstatus::{check_http, check_ping, check_port};
 
@@ -84,7 +83,7 @@ fn create_html(file_name: &str, contents: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn test_service(service: &Service) -> bool {
+async fn test_service(service: &Service) -> bool {
     match service.svc_type {
         ServiceType::Ping => {
             check_ping(service.host.as_str()).unwrap()
@@ -93,7 +92,7 @@ fn test_service(service: &Service) -> bool {
             check_port(service.host.as_str(), service.port.unwrap()).unwrap()
         }
         ServiceType::Http => {
-            check_http(service.host.as_str(), service.ssl).unwrap()
+            check_http(service.host.as_str(), service.ssl).await.unwrap()
         }
     }
 }
@@ -110,10 +109,12 @@ pub async fn generate(frequency: u16, checks_file: String, output_dir: String) {
         let last_update: u64 = Utc::now().timestamp() as u64;
 
         // Check each service is up in parallel
-        service_list.par_iter_mut().for_each(|service| {
-            service.up = test_service(service);
-        });
-
+        // Check each service concurrently using async tasks
+        let checks = service_list.iter().map(|s| test_service(s)).collect::<Vec<_>>();
+        let results = futures::future::join_all(checks).await;
+        for (service, res) in service_list.iter_mut().zip(results.into_iter()) {
+            service.up = res;
+        }
     
         // Serial version
         // for service in service_list.iter_mut() { 

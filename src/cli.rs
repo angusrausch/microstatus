@@ -47,8 +47,7 @@ fn get_arguments() -> ArgMatches {
         .get_matches()
 }
 
-pub fn cli_check() -> io::Result<bool> {
-
+pub async fn cli_check() -> io::Result<bool> {
     let matches = get_arguments();
 
     let host = matches.get_one::<String>("host").unwrap();
@@ -70,7 +69,7 @@ pub fn cli_check() -> io::Result<bool> {
         }
         "http" => {
             let ssl = matches.get_one::<bool>("ssl").unwrap();
-            match check_http(host, *ssl)? {
+            match check_http(host, *ssl).await? {
                 true => println!("{host} is up"),
                 false => println!("{host} is down"),
             }
