@@ -146,45 +146,38 @@
     </div>
 
     <script>
-        function epochToFormatted(epoch) {
-            if (epoch.toString().length === 10) {
-                epoch *= 1000;
-            }
+        const last_updated_utc = {{ last_updated }} * 1000;
+        const date = new Date(last_updated_utc);
 
-            const date = new Date(epoch);
+        const pad = (num) => num.toString().padStart(2, '0');
 
-            const pad = (num) => num.toString().padStart(2, '0');
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+        const day = pad(date.getDate());
+        const month = pad(date.getMonth() + 1);
+        const year = date.getFullYear();
 
-            const hours = pad(date.getHours());
-            const minutes = pad(date.getMinutes());
-            const seconds = pad(date.getSeconds());
-            const day = pad(date.getDate());
-            const month = pad(date.getMonth() + 1);
-            const year = date.getFullYear();
-
-            return `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
-        }
-
-        const last_updated = {{last_updated}};
-        const last_updated_str = epochToFormatted(last_updated);
-        const update_frequency = {{frequency}} 
+        const last_updated_str = `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
         document.getElementById("last_updated").textContent = last_updated_str;
 
         function tryReload() {
             try {
                 location.reload();
             } catch (e) {
-                console.error("Reload failed, retrying in 5 seconds...", e);
-                setTimeout(tryReload, (update_frequency * 1000));
+                console.error("Reload failed, retrying in update_frequency seconds...", e);
+                setTimeout(tryReload, {{ frequency }} * 1000);
             }
         }
 
         const now = Math.floor(Date.now() / 1000);
-        const update_delay = update_frequency + 3
-        const refresh_in_ms = Math.max((last_updated + update_delay - now) * 1000, 0);
+        const update_delay = {{ frequency }} + 3;
+        let refresh_in_ms = ({{ last_updated }} + update_delay - now) * 1000;
+
+        refresh_in_ms = Math.max(refresh_in_ms, 5000);
+
         setTimeout(tryReload, refresh_in_ms);
-
-
     </script>
+
 </body>
 </html>

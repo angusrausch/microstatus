@@ -1,9 +1,10 @@
 use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
+use chrono::Utc;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use microstatus::{check_http, check_ping, check_port};
@@ -106,11 +107,7 @@ pub async fn generate(frequency: u16, checks_file: &str) {
         interval.tick().await;
 
         // Get last_update_time to display
-        let last_update_system_time = SystemTime::now();
-        let last_update_epoch: u64 = last_update_system_time
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
+        let last_update: u64 = Utc::now().timestamp() as u64;
 
         // Check each service is up in parallel
         service_list.par_iter_mut().for_each(|service| {
@@ -123,7 +120,7 @@ pub async fn generate(frequency: u16, checks_file: &str) {
         //     service.up = test_service(service);
         // }
         
-        let output = IndexTemplate { services: &service_list, last_updated: last_update_epoch, frequency: frequency };
+        let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency: frequency };
         let contents = output.render().unwrap();
     
         create_html("output/test_index.html", &contents).unwrap();
