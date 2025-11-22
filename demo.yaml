@@ -4,16 +4,16 @@ services:
     svc_type: "ping"
 
   - name: "Ping Down"
-    host: "notup"
+    host: "not-up"
     svc_type: "ping"
 
   - name: "Port Up"
-    host: "192.168.246.2"
+    host: "1.1.1.1"
     svc_type: "port"
     port: 53
 
   - name: "Port Down"
-    host: "0.0.0.0"
+    host: "not-up"
     svc_type: "port"
     port: 32143
 
@@ -22,5 +22,5 @@ services:
     svc_type: "http"
 
   - name: "HTTP Down"
-    host: "notup"
+    host: "not-up"
     svc_type: "http"

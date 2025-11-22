@@ -1,0 +1,29 @@
+#!/sbin/openrc-run
+
+name="microstatus"
+description="Microstatus Service"
+
+command="/root/microstatus/microstatus" # Location of microstatus binary
+command_user="root"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+output_log="/var/log/microstatus.log"
+error_log="/var/log/microstatus.err"
+
+depend() {
+    need net
+}
+
+start() {
+    ebegin "Starting Microstatus"
+    start-stop-daemon --start --background --make-pidfile --pidfile "$pidfile" \
+        --chdir /root/microstatus \ # Directory containing .env and yaml
+        --exec "$command" -- $command_args 
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping Microstatus"
+    start-stop-daemon --stop --pidfile "$pidfile"
+    eend $?
+}
