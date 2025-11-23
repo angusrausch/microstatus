@@ -11,6 +11,7 @@
             color: #e0e0e0;
             margin: 0;
             padding: 0;
+            text-align: center; /* Center all text */
         }
 
         header {
@@ -32,7 +33,6 @@
         }
 
         .last-updated {
-            text-align: center;
             margin-top: 0.5rem;
             font-size: 0.9rem;
             color: #999999;
@@ -41,10 +41,22 @@
         .container {
             max-width: 1000px;
             margin: 2rem auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1.5rem;
             padding: 0 1rem;
+        }
+
+        .service-group-title {
+            width: 100%;
+            color: #ffffff;
+            margin: 2rem 0 1rem 0;
+            font-size: 1.5rem;
+        }
+
+        /* Centered grid even with 1 or 2 items */
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, max-content));
+            gap: 1.5rem;
+            justify-content: center; /* center items */
         }
 
         .service-card {
@@ -56,6 +68,7 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            text-align: center; /* Center content inside each card */
         }
 
         .service-card:hover {
@@ -65,8 +78,8 @@
 
         .service-header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            align-items: center; /* Center name and status */
             margin-bottom: 0.8rem;
         }
 
@@ -81,6 +94,7 @@
             display: flex;
             align-items: center;
             gap: 0.4rem;
+            justify-content: center; /* Center the status */
         }
 
         .up {
@@ -113,12 +127,6 @@
             50% { transform: scale(1.2); opacity: 1; }
             100% { transform: scale(0.8); opacity: 0.7; }
         }
-
-        .service-details {
-            font-size: 0.95rem;
-            color: #bbbbbb;
-            margin-top: 0.5rem;
-        }
     </style>
 </head>
 <body>
@@ -132,15 +140,20 @@
     </div>
 
     <div class="container">
-        {% for service in services %}
-            <div class="service-card">
-                <div class="service-header">
-                    <div class="service-name">{{ service.name }}</div>
-                    <div class="status {% if service.up %}up{% else %}down{% endif %}">
-                        <span class="status-dot"></span>
-                        {% if service.up %}&check;{% else %}X{% endif %}
+        {% for entry in services.iter() %}
+            <h2 class="service-group-title">{{ entry.0 }}</h2>
+            <div class="service-grid">
+                {% for service in entry.1 %}
+                    <div class="service-card">
+                        <div class="service-header">
+                            <div class="service-name">{{ service.name }}</div>
+                            <div class="status {% if service.up %}up{% else %}down{% endif %}">
+                                <span class="status-dot"></span>
+                                {% if service.up %}&check;{% else %}X{% endif %}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                {% endfor %}
             </div>
         {% endfor %}
     </div>
@@ -178,6 +191,5 @@
 
         setTimeout(tryReload, refresh_in_ms);
     </script>
-
 </body>
 </html>

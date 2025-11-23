@@ -1,6 +1,8 @@
 use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
+use std::collections::HashMap;
+use futures::future::join_all;
 use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
@@ -8,7 +10,7 @@ use chrono::Utc;
 
 use microstatus::{check_http, check_ping, check_port};
 
-#[derive (Debug, Clone)]
+#[derive (Debug, Clone, Copy)]
 enum ServiceType {
     Ping,
     Port,
@@ -27,6 +29,7 @@ impl FromStr for ServiceType {
     }
 }
 
+#[derive(Debug)]
 pub struct Service {
     name: String,
     svc_type: ServiceType,
@@ -36,36 +39,45 @@ pub struct Service {
     ssl: bool,
 }
 
-fn load_yaml(file: String) -> Vec<Service>  {
+fn load_yaml(file: String) -> HashMap<String, Vec<Service>> {
     let yaml_contents = read_to_string(file)
-    .expect("Should have been able to read the file");
+        .expect("Should have been able to read the file");
 
     let yaml_docs = YamlLoader::load_from_str(&yaml_contents).unwrap();
     let yaml = &yaml_docs[0];
 
-    let mut service_list: Vec<Service> = Vec::new();
-    if let Some(services) = yaml["services"].as_vec() {
-        for service in services {
-            service_list.push(
-                Service {
-                    name: service["name"].as_str().unwrap().to_string(),
-                    svc_type: service["svc_type"].as_str().unwrap().parse().unwrap(),
-                    host: service["host"].as_str().unwrap().to_string(),
-                    up: false,
-                    port: service["port"].as_i64().map(|p| p as u16),
-                    ssl: service["ssl"].as_bool().unwrap_or(true),
+    let mut service_map: HashMap<String, Vec<Service>> = HashMap::new();
+    
+    if let Some(groups) = yaml.as_vec() {
+        for group in groups {
+            let title = group["title"].as_str().unwrap().to_string();
+
+            if let Some(services) = group["services"].as_vec() {
+                let mut group_services = Vec::new();
+
+                for service in services {
+                    group_services.push(Service {
+                        name: service["name"].as_str().unwrap().to_string(),
+                        svc_type: service["svc_type"].as_str().unwrap().parse().unwrap(),
+                        host: service["host"].as_str().unwrap().to_string(),
+                        up: false,
+                        port: service["port"].as_i64().map(|p| p as u16),
+                        ssl: service["ssl"].as_bool().unwrap_or(true),
+                    });
                 }
-            )
+
+                service_map.insert(title, group_services);
+            }
         }
     }
 
-    service_list
+    service_map
 }
 
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate<'a> { 
-    services: &'a [Service], 
+    services: &'a HashMap<String, Vec<Service>>, 
     last_updated: u64,
     frequency: u16,
 }
@@ -98,30 +110,36 @@ async fn test_service(service: &Service) -> bool {
 }
 
 pub async fn generate(frequency: u16, checks_file: String, output_dir: String) {
-    let mut service_list: Vec<Service> = load_yaml(checks_file);
-    
+    let mut service_list: HashMap<String, Vec<Service>> = load_yaml(checks_file);
     let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
 
     loop {
         interval.tick().await;
 
-        // Get last_update_time to display
         let last_update: u64 = Utc::now().timestamp() as u64;
 
-        // Check each service is up in parallel
-        // Check each service concurrently using async tasks
-        let checks = service_list.iter().map(|s| test_service(s)).collect::<Vec<_>>();
-        let results = futures::future::join_all(checks).await;
-        for (service, res) in service_list.iter_mut().zip(results.into_iter()) {
-            service.up = res;
+        // Collect futures for every service in the hashmap (stable traversal order for values() / values_mut())
+        let mut checks = Vec::new();
+        for group in service_list.values() {
+            for service in group.iter() {
+                checks.push(test_service(service));
+            }
+        }
+
+        // Await all checks in parallel
+        let results: Vec<bool> = join_all(checks).await;
+
+        // Apply results back to the services in the same traversal order
+        let mut res_iter = results.into_iter();
+        for group in service_list.values_mut() {
+            for service in group.iter_mut() {
+                if let Some(r) = res_iter.next() {
+                    service.up = r;
+                }
+            }
         }
     
-        // Serial version
-        // for service in service_list.iter_mut() { 
-        //     service.up = test_service(service);
-        // }
-        
-        let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency: frequency };
+        let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
         let contents = output.render().unwrap();
     
         create_html(&format!("{output_dir}/index.html"), &contents).unwrap();

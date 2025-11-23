@@ -1,26 +1,32 @@
-services:
-  - name: "Ping Up"
-    host: "google.com"
-    svc_type: "ping"
+- title: "ping"
+  services:
+    - name: "Ping Up"
+      host: "google.com"
+      svc_type: "ping"
 
-  - name: "Ping Down"
-    host: "not-up"
-    svc_type: "ping"
+    - name: "Ping Down"
+      host: "notup"
+      svc_type: "ping"
 
-  - name: "Port Up"
-    host: "1.1.1.1"
-    svc_type: "port"
-    port: 53
+- title: "port"
+  services:
+    - name: "Port Up"
+      host: "1.1.1.1"
+      svc_type: "port"
+      port: 53
 
-  - name: "Port Down"
-    host: "not-up"
-    svc_type: "port"
-    port: 32143
+    - name: "Port Down"
+      host: "1.1.1.1"
+      svc_type: "port"
+      port: 32143
 
-  - name: "HTTP Up"
-    host: "google.com"
-    svc_type: "http"
+- title: "http"
+  services:
+    - name: "HTTP Up"
+      host: "google.com"
+      svc_type: "http"
 
-  - name: "HTTP Down"
-    host: "not-up"
-    svc_type: "http"
+    - name: "HTTP Down"
+      host: "notup"
+      svc_type: "http"
+
