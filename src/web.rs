@@ -71,6 +71,24 @@ fn load_yaml(file: String) -> HashMap<String, Vec<Service>> {
         }
     }
 
+    // Backwards compatibility with none titled service list
+    if let Some(services) = yaml["services"].as_vec() {
+        let title: String = "Services".to_string();
+        let mut group_services = Vec::new();
+        
+        for service in services {
+            group_services.push(Service {
+                name: service["name"].as_str().unwrap().to_string(),
+                svc_type: service["svc_type"].as_str().unwrap().parse().unwrap(),
+                host: service["host"].as_str().unwrap().to_string(),
+                up: false,
+                port: service["port"].as_i64().map(|p| p as u16),
+                ssl: service["ssl"].as_bool().unwrap_or(true),
+            });
+        }
+        service_map.insert(title, group_services);
+    }
+
     service_map
 }
 
