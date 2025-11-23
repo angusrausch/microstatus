@@ -119,7 +119,7 @@ async fn test_service(service: &Service) -> bool {
             check_ping(service.host.as_str()).unwrap()
         }
         ServiceType::Port => {
-            check_port(service.host.as_str(), service.port.unwrap()).unwrap()
+            check_port(service.host.as_str(), service.port.unwrap()).unwrap_or(false)
         }
         ServiceType::Http => {
             check_http(service.host.as_str(), service.ssl).await.unwrap()
