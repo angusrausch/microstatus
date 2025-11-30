@@ -128,7 +128,7 @@ async fn test_service(service: &Service) -> bool {
     }
 }
 
-async fn add_history(services: Vec<Service>, json_file: String) -> Result<(), serde_json::Error> {
+async fn add_history(services: Vec<Service>, json_file: String, max_length: u32) -> Result<(), serde_json::Error> {
     let mut json: Value;
     if tokio::fs::metadata(&json_file).await.is_ok() {
         let json_string: String = tokio::fs::read_to_string(&json_file).await.expect("Should have been able to read the file");
@@ -155,6 +155,9 @@ async fn add_history(services: Vec<Service>, json_file: String) -> Result<(), se
             match map.get_mut(&service.name) {
                 Some(Value::Array(arr)) => {
                     arr.push(entry);
+                    while arr.len() > max_length as usize {
+                        arr.remove(0);
+                    }
                 }
                 Some(_) => {
                     map.insert(service.name.clone(), Value::Array(vec![entry]));
@@ -208,7 +211,7 @@ pub async fn generate(frequency: u16, checks_file: String, output_dir: String) -
         let contents = output.render().unwrap();
 
         let all_services: Vec<Service> = service_list.values().flat_map(|v| v.iter().cloned()).collect();
-        add_history(all_services, "history.json".to_string()).await?;
+        add_history(all_services, "history.json".to_string(), 3).await?;
 
         create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
     }
