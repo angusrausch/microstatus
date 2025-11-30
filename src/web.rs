@@ -2,11 +2,13 @@ use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
 use std::collections::HashMap;
+use askama::filters::format;
 use futures::future::join_all;
 use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
 use chrono::Utc;
+use serde::Deserialize;
 use serde_json::{Value, Map};
 
 use microstatus::{check_http, check_ping, check_port};
@@ -128,51 +130,98 @@ async fn test_service(service: &Service) -> bool {
     }
 }
 
-async fn add_history(services: Vec<Service>, json_file: String, max_length: u32) -> Result<(), serde_json::Error> {
-    let mut json: Value;
-    if tokio::fs::metadata(&json_file).await.is_ok() {
-        let json_string: String = tokio::fs::read_to_string(&json_file).await.expect("Should have been able to read the file");
-        if serde_json::from_str::<Value>(&json_string).is_err() {
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct Check {
+    timestamp: String,
+    status: bool,
+}
+
+async fn add_history(services: Vec<Service>, json_file: String, max_length: u32, output_dir: &str) -> Result<(), serde_json::Error> {
+    let mut json: Value = if tokio::fs::metadata(&json_file).await.is_ok() {
+        let json_string = tokio::fs::read_to_string(&json_file)
+            .await
+            .expect("Should have been able to read the file");
+
+        serde_json::from_str(&json_string).unwrap_or_else(|_| {
             println!("JSON INVALID. Rewriting file");
-            json = Value::Object(Map::new());
-        } else {
-            json = serde_json::from_str(&json_string)?;
-        }
+            Value::Object(Map::new())
+        })
     } else {
-        print!("File Not Found. Writing file");
-        json = Value::Object(Map::new());
-    }
+        println!("File Not Found. Creating new file");
+        Value::Object(Map::new())
+    };
 
     let now = Utc::now().to_rfc3339();
 
     for service in services {
         if let Value::Object(ref mut map) = json {
-            let entry = serde_json::json!({
-                "timestamp": now,
-                "status": service.up
-            });
 
-            match map.get_mut(&service.name) {
+            // New Check entry
+            let entry = serde_json::to_value(Check {
+                timestamp: now.clone(),
+                status: service.up,
+            }).unwrap();
+
+            // Mutate in JSON
+            let updated_array = match map.get_mut(&service.name) {
                 Some(Value::Array(arr)) => {
                     arr.push(entry);
+
                     while arr.len() > max_length as usize {
                         arr.remove(0);
                     }
+
+                    arr.clone()
                 }
-                Some(_) => {
-                    map.insert(service.name.clone(), Value::Array(vec![entry]));
+                _ => {
+                    let arr = vec![entry];
+                    map.insert(service.name.clone(), Value::Array(arr.clone()));
+                    arr
                 }
-                None => {
-                    map.insert(service.name.clone(), Value::Array(vec![entry]));
-                }
-            }
+            };
+
+            let checks: Vec<Check> = serde_json::from_value(Value::Array(updated_array))
+                .expect("history array failed to deserialize into Vec<Check>");
+
+            let _ = make_history_html(service.clone(), checks, output_dir).await;
         }
     }
 
-    if let Value::Object(_) = json {
-        let json_string = serde_json::to_string_pretty(&json)?;
-        tokio::fs::write(&json_file, json_string).await.expect("Unable to write history file");
+    let json_string = serde_json::to_string_pretty(&json)?;
+    tokio::fs::write(&json_file, json_string)
+        .await
+        .expect("Unable to write history file");
+
+    Ok(())
+}
+
+#[derive(Template)]
+#[template(path = "history.html")]
+struct HistoryTemplate<'a> { 
+    service: Service, 
+    history: &'a Vec<Check>,
+}
+
+async fn make_history_html(service: Service, history: Vec<Check>, output_dir: &str) -> std::io::Result<()> {
+    let file_name = service.name.replace(" ", "_");
+    
+    let file_path = format!("{output_dir}/history/{file_name}.html");
+
+    if let Some(index) = file_path.rfind('/') {
+        let (dir, _) = file_path.split_at(index);
+        create_dir_all(dir)?;
+    } else {
+        println!("No '/' found in the path.");
     }
+
+
+
+    let output = HistoryTemplate{ service: service, history: &history};
+    let contents = output.render().unwrap();
+
+    let mut file = File::create(file_path)?;
+    file.write_all(contents.as_bytes())?;
 
     Ok(())
 }
@@ -206,13 +255,13 @@ pub async fn generate(frequency: u16, checks_file: String, output_dir: String) -
                 }
             }
         }
-    
+        
+        let all_services: Vec<Service> = service_list.values().flat_map(|v| v.iter().cloned()).collect();
+        add_history(all_services, "history.json".to_string(), 15, &output_dir).await?;
+
         let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
         let contents = output.render().unwrap();
-
-        let all_services: Vec<Service> = service_list.values().flat_map(|v| v.iter().cloned()).collect();
-        add_history(all_services, "history.json".to_string(), 3).await?;
-
         create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
+
     }
 }

@@ -133,64 +133,23 @@
     <header>
         <h1>Service Status Dashboard</h1>
         <p>Monitor your services in real-time</p>
+        <h2>{{service.name}}</h2>
     </header>
 
-    <div class="last-updated">
-        Last updated: <span id="last_updated"></span>
-    </div>
-
     <div class="container">
-        {% for entry in services.iter() %}
-            <h2 class="service-group-title">{{ entry.0 }}</h2>
-            <div class="service-grid">
-                {% for service in entry.1 %}
-                    <div class="service-card">
-                        <div class="service-header">
-                            <div class="service-name">{{ service.name }}</div>
-                            <div class="status {% if service.up %}up{% else %}down{% endif %}">
-                                <span class="status-dot"></span>
-                                {% if service.up %}&check;{% else %}X{% endif %}
-                            </div>
+        <div class="service-grid">
+            {% for check in history %}
+                <div class="service-card">
+                    <div class="service-header">
+                        <div class="service-name">{{ check.timestamp }}</div>
+                        <div class="status {% if service.up %}up{% else %}down{% endif %}">
+                            <span class="status-dot"></span>
+                            {% if check.status %}&check;{% else %}X{% endif %}
                         </div>
-                        <a href="history/{{ service.name.replace(" ", "_") | escape }}.html"><span style="color: white;">History</span></a>
                     </div>
-                {% endfor %}
-            </div>
-        {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
     </div>
-
-    <script>
-        const last_updated_utc = {{ last_updated }} * 1000;
-        const date = new Date(last_updated_utc);
-
-        const pad = (num) => num.toString().padStart(2, '0');
-
-        const hours = pad(date.getHours());
-        const minutes = pad(date.getMinutes());
-        const seconds = pad(date.getSeconds());
-        const day = pad(date.getDate());
-        const month = pad(date.getMonth() + 1);
-        const year = date.getFullYear();
-
-        const last_updated_str = `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
-        document.getElementById("last_updated").textContent = last_updated_str;
-
-        function tryReload() {
-            try {
-                location.reload();
-            } catch (e) {
-                console.error("Reload failed, retrying in update_frequency seconds...", e);
-                setTimeout(tryReload, {{ frequency }} * 1000);
-            }
-        }
-
-        const now = Math.floor(Date.now() / 1000);
-        const update_delay = {{ frequency }} + 3;
-        let refresh_in_ms = ({{ last_updated }} + update_delay - now) * 1000;
-
-        refresh_in_ms = Math.max(refresh_in_ms, 5000);
-
-        setTimeout(tryReload, refresh_in_ms);
-    </script>
 </body>
 </html>
