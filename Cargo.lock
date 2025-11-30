@@ -764,6 +764,7 @@ dependencies = [
  "rand",
  "rayon",
  "reqwest",
+ "serde_json",
  "tokio",
  "yaml-rust2",
 ]

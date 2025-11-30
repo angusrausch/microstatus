@@ -20,6 +20,6 @@ async fn main() {
     if cli_flag {
         let _ = cli::cli_check().await;
     } else {
-        web::generate(frequency, check_file, html_output_dir).await;
+        let _ = web::generate(frequency, check_file, html_output_dir).await;
     }
 }

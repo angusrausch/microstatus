@@ -7,6 +7,7 @@ use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
 use chrono::Utc;
+use serde_json::{Value, Map};
 
 use microstatus::{check_http, check_ping, check_port};
 
@@ -29,7 +30,7 @@ impl FromStr for ServiceType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Service {
     name: String,
     svc_type: ServiceType,
@@ -127,7 +128,53 @@ async fn test_service(service: &Service) -> bool {
     }
 }
 
-pub async fn generate(frequency: u16, checks_file: String, output_dir: String) {
+async fn add_history(services: Vec<Service>, json_file: String) -> Result<(), serde_json::Error> {
+    let mut json: Value;
+    if tokio::fs::metadata(&json_file).await.is_ok() {
+        let json_string: String = tokio::fs::read_to_string(&json_file).await.expect("Should have been able to read the file");
+        if serde_json::from_str::<Value>(&json_string).is_err() {
+            println!("JSON INVALID. Rewriting file");
+            json = Value::Object(Map::new());
+        } else {
+            json = serde_json::from_str(&json_string)?;
+        }
+    } else {
+        print!("File Not Found. Writing file");
+        json = Value::Object(Map::new());
+    }
+
+    let now = Utc::now().to_rfc3339();
+
+    for service in services {
+        if let Value::Object(ref mut map) = json {
+            let entry = serde_json::json!({
+                "timestamp": now,
+                "status": service.up
+            });
+
+            match map.get_mut(&service.name) {
+                Some(Value::Array(arr)) => {
+                    arr.push(entry);
+                }
+                Some(_) => {
+                    map.insert(service.name.clone(), Value::Array(vec![entry]));
+                }
+                None => {
+                    map.insert(service.name.clone(), Value::Array(vec![entry]));
+                }
+            }
+        }
+    }
+
+    if let Value::Object(_) = json {
+        let json_string = serde_json::to_string_pretty(&json)?;
+        tokio::fs::write(&json_file, json_string).await.expect("Unable to write history file");
+    }
+
+    Ok(())
+}
+
+pub async fn generate(frequency: u16, checks_file: String, output_dir: String) -> Result<(), serde_json::Error> {
     let mut service_list: HashMap<String, Vec<Service>> = load_yaml(checks_file);
     let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
 
@@ -159,7 +206,10 @@ pub async fn generate(frequency: u16, checks_file: String, output_dir: String) {
     
         let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
         let contents = output.render().unwrap();
-    
+
+        let all_services: Vec<Service> = service_list.values().flat_map(|v| v.iter().cloned()).collect();
+        add_history(all_services, "history.json".to_string()).await?;
+
         create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
     }
 }

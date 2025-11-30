@@ -5,4 +5,7 @@
 .env
 checks.yaml
 
+# History file
+history.json
+
 **/.DS_STORE
