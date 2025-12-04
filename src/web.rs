@@ -12,6 +12,7 @@ use serde::Deserialize;
 use serde_json::{Value, Map};
 
 use microstatus::{check_http, check_ping, check_port};
+use crate::server::run_server;
 
 #[derive (Debug, Clone, Copy)]
 enum ServiceType {
@@ -226,42 +227,49 @@ async fn make_history_html(service: Service, history: Vec<Check>, output_dir: &s
     Ok(())
 }
 
-pub async fn generate(frequency: u16, checks_file: String, output_dir: String) -> Result<(), serde_json::Error> {
-    let mut service_list: HashMap<String, Vec<Service>> = load_yaml(checks_file);
-    let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
+pub async fn generate(frequency: u16, checks_file: String, output_dir: String, webserver: u16) -> Result<(), serde_json::Error> {
+    // Call the server function in the background
+    tokio::spawn(run_server(webserver, output_dir.clone()));
 
     loop {
-        interval.tick().await;
-
-        let last_update: u64 = Utc::now().timestamp() as u64;
-
-        // Collect futures for every service in the hashmap (stable traversal order for values() / values_mut())
-        let mut checks = Vec::new();
-        for group in service_list.values() {
-            for service in group.iter() {
-                checks.push(test_service(service));
-            }
-        }
-
-        // Await all checks in parallel
-        let results: Vec<bool> = join_all(checks).await;
-
-        // Apply results back to the services in the same traversal order
-        let mut res_iter = results.into_iter();
-        for group in service_list.values_mut() {
-            for service in group.iter_mut() {
-                if let Some(r) = res_iter.next() {
-                    service.up = r;
-                }
-            }
-        }
         
-        let all_services: Vec<Service> = service_list.values().flat_map(|v| v.iter().cloned()).collect();
-        add_history(all_services, "history.json".to_string(), 15, &output_dir).await?;
-
-        let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
-        let contents = output.render().unwrap();
-        create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
-
     }
+    // let mut service_list: HashMap<String, Vec<Service>> = load_yaml(checks_file);
+    // let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
+
+    // loop {
+    //     interval.tick().await;
+
+    //     let last_update: u64 = Utc::now().timestamp() as u64;
+
+    //     // Collect futures for every service in the hashmap (stable traversal order for values() / values_mut())
+    //     let mut checks = Vec::new();
+    //     for group in service_list.values() {
+    //         for service in group.iter() {
+    //             checks.push(test_service(service));
+    //         }
+    //     }
+
+    //     // Await all checks in parallel
+    //     let results: Vec<bool> = join_all(checks).await;
+
+    //     // Apply results back to the services in the same traversal order
+    //     let mut res_iter = results.into_iter();
+    //     for group in service_list.values_mut() {
+    //         for service in group.iter_mut() {
+    //             if let Some(r) = res_iter.next() {
+    //                 service.up = r;
+    //             }
+    //         }
+    //     }
+        
+    //     let all_services: Vec<Service> = service_list.values().flat_map(|v| v.iter().cloned()).collect();
+    //     add_history(all_services, "history.json".to_string(), 15, &output_dir).await?;
+
+    //     let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
+    //     let contents = output.render().unwrap();
+    //     create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
+
+    // }
+    Ok(())
 }
