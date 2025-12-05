@@ -222,20 +222,29 @@ async fn make_history_html(service: Service, history: Vec<Check>, output_dir: &A
 }
 
 pub async fn generate(frequency: u16, checks_file: String, output_dir: Arc<PathBuf>, webserver: u16) -> Result<(), serde_json::Error> {
-    if webserver != 0 {
-        tokio::spawn(run_server(webserver, output_dir.clone()));
-    }
     
     let mut service_list: HashMap<String, Vec<Service>> = load_yaml(checks_file);
     let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
     let index_file_path = output_dir.join("index.html");
 
+    let last_update: u64 = Utc::now().timestamp() as u64;
+
+    let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
+    let contents = output.render().unwrap();
+    
+    create_html(&index_file_path, &contents)
+        .expect("FATAL: Failed to create or write initial index.html file.");
+
+
+    if webserver != 0 {
+        tokio::spawn(run_server(webserver, output_dir.clone()));
+    }
+    
     loop {
         interval.tick().await;
 
         let last_update: u64 = Utc::now().timestamp() as u64;
 
-        // Collect futures for every service in the hashmap (stable traversal order for values() / values_mut())
         let mut checks = Vec::new();
         for group in service_list.values() {
             for service in group.iter() {
