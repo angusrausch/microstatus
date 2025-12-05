@@ -2,16 +2,17 @@ use std::io::Write;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::str::FromStr;
 use std::collections::HashMap;
-use askama::filters::format;
+use std::sync::Arc;
 use futures::future::join_all;
 use std::time::Duration;
 use askama::Template;
 use yaml_rust2::YamlLoader;
 use chrono::Utc;
-use serde::Deserialize;
 use serde_json::{Value, Map};
+use std::path::PathBuf;
 
 use microstatus::{check_http, check_ping, check_port};
+use crate::server::run_server;
 
 #[derive (Debug, Clone, Copy)]
 enum ServiceType {
@@ -103,15 +104,19 @@ struct IndexTemplate<'a> {
     frequency: u16,
 }
 
-fn create_html(file_name: &str, contents: &str) -> std::io::Result<()> {
-    if let Some(index) = file_name.rfind('/') {
-        let (dir, _) = file_name.split_at(index);
-        create_dir_all(dir)?;
-    } else {
-        println!("No '/' found in the path.");
+fn create_html(file_path: &PathBuf, contents: &str) -> std::io::Result<()> {
+    if let Some(parent) = file_path.parent() {
+        match create_dir_all(parent) {
+            Ok(_) => (),
+            Err(e) => {
+                // Return an error if directory creation fails
+                eprintln!("Error creating directory {}: {}", parent.display(), e);
+                return Err(e);
+            }
+        }
     }
 
-    let mut file = File::create(file_name)?;
+    let mut file = File::create(file_path)?;
     file.write_all(contents.as_bytes())?;
     Ok(())
 }
@@ -119,7 +124,7 @@ fn create_html(file_name: &str, contents: &str) -> std::io::Result<()> {
 async fn test_service(service: &Service) -> bool {
     match service.svc_type {
         ServiceType::Ping => {
-            check_ping(service.host.as_str()).unwrap()
+            check_ping(service.host.as_str()).unwrap_or(false)
         }
         ServiceType::Port => {
             check_port(service.host.as_str(), service.port.unwrap()).unwrap_or(false)
@@ -137,7 +142,7 @@ struct Check {
     status: bool,
 }
 
-async fn add_history(services: Vec<Service>, json_file: String, max_length: u32, output_dir: &str) -> Result<(), serde_json::Error> {
+async fn add_history(services: Vec<Service>, json_file: String, max_length: u32, output_dir: &Arc<PathBuf>) -> Result<(), serde_json::Error> {
     let mut json: Value = if tokio::fs::metadata(&json_file).await.is_ok() {
         let json_string = tokio::fs::read_to_string(&json_file)
             .await
@@ -203,39 +208,43 @@ struct HistoryTemplate<'a> {
     history: &'a Vec<Check>,
 }
 
-async fn make_history_html(service: Service, history: Vec<Check>, output_dir: &str) -> std::io::Result<()> {
+async fn make_history_html(service: Service, history: Vec<Check>, output_dir: &Arc<PathBuf>) -> std::io::Result<()> {
     let file_name = service.name.replace(" ", "_");
-    
-    let file_path = format!("{output_dir}/history/{file_name}.html");
 
-    if let Some(index) = file_path.rfind('/') {
-        let (dir, _) = file_path.split_at(index);
-        create_dir_all(dir)?;
-    } else {
-        println!("No '/' found in the path.");
-    }
-
-
+    let file_path = output_dir.join(format!("history/{file_name}.html"));
 
     let output = HistoryTemplate{ service: service, history: &history};
     let contents = output.render().unwrap();
 
-    let mut file = File::create(file_path)?;
-    file.write_all(contents.as_bytes())?;
+    create_html(&file_path, &contents)?;
 
     Ok(())
 }
 
-pub async fn generate(frequency: u16, checks_file: String, output_dir: String) -> Result<(), serde_json::Error> {
+pub async fn generate(frequency: u16, checks_file: String, output_dir: Arc<PathBuf>, webserver: u16) -> Result<(), serde_json::Error> {
+    
     let mut service_list: HashMap<String, Vec<Service>> = load_yaml(checks_file);
     let mut interval = tokio::time::interval(Duration::from_secs(frequency as u64));
+    let index_file_path = output_dir.join("index.html");
 
+    let last_update: u64 = Utc::now().timestamp() as u64;
+
+    let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
+    let contents = output.render().unwrap();
+    
+    create_html(&index_file_path, &contents)
+        .expect("FATAL: Failed to create or write initial index.html file.");
+
+
+    if webserver != 0 {
+        tokio::spawn(run_server(webserver, output_dir.clone()));
+    }
+    
     loop {
         interval.tick().await;
 
         let last_update: u64 = Utc::now().timestamp() as u64;
 
-        // Collect futures for every service in the hashmap (stable traversal order for values() / values_mut())
         let mut checks = Vec::new();
         for group in service_list.values() {
             for service in group.iter() {
@@ -261,7 +270,8 @@ pub async fn generate(frequency: u16, checks_file: String, output_dir: String) -
 
         let output = IndexTemplate { services: &service_list, last_updated: last_update, frequency };
         let contents = output.render().unwrap();
-        create_html(&format!("{output_dir}/index.html"), &contents).unwrap();
-
+        
+        create_html(&index_file_path, &contents)
+                    .expect("FATAL: Failed to create or write to the index.html file.");
     }
 }
