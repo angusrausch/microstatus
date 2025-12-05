@@ -1,19 +1,75 @@
 use std::net::{TcpListener, TcpStream};
-use std::io::{BufReader, prelude::*, ErrorKind::*};
-use std::fs::read_to_string;
+use std::io::{BufReader, prelude::*};
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::sync::{mpsc, Arc, Mutex};
 
+struct ThreadPool {
+    _workers: Vec<Worker>,
+    sender: mpsc::Sender<Job>,
+}
 
+type Job = Box<dyn FnOnce() + Send + 'static>;
+
+impl ThreadPool {
+    fn new(size: usize) -> ThreadPool {
+        assert!(size > 0);
+
+        let (sender, receiver) = mpsc::channel();
+        let receiver = Arc::new(Mutex::new(receiver));
+
+        let mut _workers = Vec::with_capacity(size);
+
+        for id in 0..size {
+            _workers.push(Worker::new(id, Arc::clone(&receiver)));
+        }
+
+        ThreadPool { _workers, sender }
+    }
+
+    fn execute<F>(&self, f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        self.sender.send(Box::new(f)).unwrap();
+    }
+}
+
+struct Worker {
+    _id: usize,
+    _thread: thread::JoinHandle<()>,
+}
+
+impl Worker {
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let thread = thread::spawn(move || loop {
+            let job = receiver.lock().unwrap().recv();
+            match job {
+                Ok(job) => {
+                    job();
+                }
+                Err(_) => break,
+            }
+        });
+
+        Worker { _id: id, _thread: thread }
+    }
+}
 
 pub async fn run_server(port: u16, html_dir: String) {
     let bind_addr: String = format!("0.0.0.0:{port}");
     let listener = TcpListener::bind(&bind_addr).unwrap();
 
     println!("Starting listener @ {bind_addr}");
+
+    let pool = ThreadPool::new(4);
+
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-
-        handle_connection(stream, html_dir.clone());
+        let temp_html_dir = html_dir.clone();
+        pool.execute(move || {
+            handle_connection(stream, temp_html_dir);
+        });
     }
 }
 
