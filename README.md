@@ -12,6 +12,7 @@ MicroStatus is a simple, lightweight status page to monitor the status of servic
 - Customisable services through YAML configuration
 - Customisable update frequency with `.env`
 - Auto refresh web page when new update is expected
+- Built in low overhead webserver to share results
 
 ---
 ## Installation 
@@ -73,6 +74,7 @@ Can be copied from the `.env_template` file.
 FREQUENCY=30 # Update frequency 
 CHECK_FILE=demo.yaml # File containing checks to be completed
 HTML_OUTPUT_DIR=output # Output directory for HTML file
+#WEBSERVER_PORT=8081 # Port for internal webserver to bind to. Leave as comment to not use webserver
 ```
 
 ### check_file
@@ -115,10 +117,9 @@ services:
 3. To keep script running you can send to background with `nohup ./microstatus &` or equivalent  Windows command
     - Can setup a service to run server on boot. See [alpine_rc-service](example_files/apline_rc-service_conf)
 
-Use a web server such as NGINX to serve page. See [Nginx Conf](example_files/nginx.conf)
-
-Plan to have an option to run with a rust webserver serving page in future
-Docker options coming soon
+To serve page, use one of the following:
+  - Internal webserver. Uncomment `WEBSERVER_PORT=????` in `.env`. See [Configuration](#configuration)
+  - Use a web server such as NGINX to serve page. See [Nginx Conf](example_files/nginx.conf)
 
 ---
 ## Contributing
