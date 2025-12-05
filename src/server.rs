@@ -1,6 +1,6 @@
 use std::net::{TcpListener, TcpStream};
 use std::io::{BufReader, prelude::*};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::thread;
 use std::sync::{mpsc, Arc, Mutex};
 
@@ -56,7 +56,7 @@ impl Worker {
     }
 }
 
-pub async fn run_server(port: u16, html_dir: String) {
+pub async fn run_server(port: u16, html_dir: Arc<PathBuf>) {
     let bind_addr: String = format!("0.0.0.0:{port}");
     let listener = TcpListener::bind(&bind_addr).unwrap();
 
@@ -66,18 +66,16 @@ pub async fn run_server(port: u16, html_dir: String) {
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-        let temp_html_dir = html_dir.clone();
+        let html_dir = Arc::clone(&html_dir);
         pool.execute(move || {
-            handle_connection(stream, temp_html_dir);
+            handle_connection(stream, html_dir);
         });
     }
 }
 
-fn handle_connection(mut stream: TcpStream, html_dir: String) {
+fn handle_connection(mut stream: TcpStream, html_dir: Arc<PathBuf>) {
     let buf_reader = BufReader::new(&stream);
     let request_line = buf_reader.lines().next().unwrap().unwrap();
-
-    let html_dir: &Path = Path::new(&html_dir); // future: accept Path directly
 
     let (status_line, html_contents) = if request_line == "GET / HTTP/1.1" {
         // Index page
