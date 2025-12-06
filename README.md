@@ -34,7 +34,7 @@ This will create a binary for your local system, it is not compatible between Op
 
 ### Download
 
-Download the latest build for your OS and Arch from [GitHub](https://github.com/angusrausch/microstatus/actions).<br><small>Currently only on actions. Releases may be used in future.</small>
+Download the latest build for your OS and Arch from [GitHub](https://github.com/angusrausch/microstatus/releases/latest).<br>
 
 ---
 ## Manual Checks
@@ -125,3 +125,8 @@ To serve page, use one of the following:
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
