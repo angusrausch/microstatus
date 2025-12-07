@@ -23,12 +23,14 @@ async fn main() {
     );
     let webserver: u16 = env::var("WEBSERVER_PORT")
         .unwrap_or_else(|_| "0".to_string()).parse::<u16>().expect("Failed to parse string as u16");
+    let max_history: u32 = env::var("MAX_HISTORY")
+        .unwrap_or_else(|_| "2,880".to_string()).parse::<u32>().expect("Failed to parse string as u32");
 
     let cli_flag = std::env::args().any(|arg| arg == "--cli");
 
     if cli_flag {
         let _ = cli::cli_check().await;
     } else {
-        let _ = web::generate(frequency, check_file, html_output_dir, webserver).await;
+        let _ = web::generate(frequency, check_file, html_output_dir, webserver, max_history).await;
     }
 }

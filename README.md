@@ -74,6 +74,7 @@ Can be copied from the `.env_template` file.
 FREQUENCY=30 # Update frequency 
 CHECK_FILE=demo.yaml # File containing checks to be completed
 HTML_OUTPUT_DIR=output # Output directory for HTML file
+MAX_HISTORY=2880
 #WEBSERVER_PORT=8081 # Port for internal webserver to bind to. Leave as comment to not use webserver
 ```
 
